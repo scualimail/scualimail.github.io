@@ -3,156 +3,252 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qwen TPU Chat (Temp 0)</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <title>Qwen TPU Chat UI</title>
+    <!-- Tailwind CSS for modern UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for Markdown rendering in chat -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.js"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 h-screen flex flex-col">
+<body class="bg-[#0f172a] text-[#f8fafc] h-screen flex flex-col font-sans">
 
-    <!-- Header -->
-    <header class="bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center shadow-md">
-        <div>
-            <h1 class="text-xl font-bold tracking-wide">Qwen 3.8 27B <span class="text-xs bg-blue-600 text-white py-1 px-2 rounded ml-2">TPU v5e-8</span></h1>
-            <p id="status-text" class="text-xs text-yellow-400 mt-1">⏳ Connecting to Kaggle Endpoint...</p>
+    <!-- Top Header -->
+    <header class="bg-[#1e293b] border-b border-slate-700 px-6 py-4 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-3">
+            <span class="text-xl font-bold tracking-wide">Qwen 2.5-VL Chat</span>
+            <span class="bg-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider">TPU v5e-8</span>
         </div>
-        <div class="text-right text-xs text-gray-400">
-            <div>Max Context: <span class="text-gray-200">64k</span></div>
-            <div>Temperature: <span class="text-gray-200">0 (Deterministic)</span></div>
+        <div id="status-indicator" class="flex items-center space-x-2 text-sm">
+            <span class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" id="status-dot"></span>
+            <span id="status-text" class="text-slate-400">Connecting to Kaggle Notebook...</span>
         </div>
     </header>
 
-    <!-- Chat Messages Container -->
-    <main id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl w-full mx-auto">
-        <div class="flex items-start space-x-3">
-            <div class="bg-blue-600 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold">AI</div>
-            <div class="bg-gray-800 p-3 rounded-lg shadow max-w-[80%] text-sm leading-relaxed">
-                Hello! I am Qwen running on your Kaggle TPU node. Once your Kaggle notebook is running and has updated the endpoint, you can start chatting here.
+    <!-- Chat Container -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6 max-w-4xl w-full mx-auto">
+        <!-- Welcome Message -->
+        <div class="flex items-start space-x-4">
+            <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white flex-shrink-0">AI</div>
+            <div class="bg-[#1e293b] p-4 rounded-2xl border border-slate-700 max-w-2xl shadow-sm">
+                <p>Hello! I am Qwen running on your Kaggle TPU node with vision capabilities enabled. Upload an image or type a prompt below to start chatting.</p>
             </div>
         </div>
     </main>
 
+    <!-- Image Preview Area -->
+    <div id="preview-container" class="max-w-4xl w-full mx-auto px-6 hidden">
+        <div class="relative inline-block mb-2">
+            <img id="image-preview" class="h-20 w-20 object-cover rounded-lg border border-slate-600" src="" alt="Preview">
+            <button onclick="removeImage()" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow hover:bg-red-700">&times;</button>
+        </div>
+    </div>
+
     <!-- Input Footer -->
-    <footer class="bg-gray-800 border-t border-gray-700 p-4">
-        <form id="chat-form" class="max-w-4xl mx-auto flex gap-3">
-            <input 
-                type="text" 
-                id="user-input" 
-                placeholder="Type your prompt here..." 
-                class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-gray-100"
-                autocomplete="off"
-                required
-            >
-            <button 
-                type="submit" 
-                id="send-btn"
-                class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg text-sm transition disabled:opacity-50"
-            >
+    <footer class="bg-[#1e293b] border-t border-slate-700 p-4 shadow-lg">
+        <div class="max-w-4xl mx-auto flex items-end space-x-3">
+            <!-- Image Upload Button -->
+            <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 p-3 rounded-xl transition flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input type="file" id="image-input" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+            </label>
+
+            <!-- Textarea Prompt Input -->
+            <textarea id="user-input" rows="1" placeholder="Type your prompt here..." class="flex-1 bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none max-h-32"></textarea>
+
+            <!-- Send Button -->
+            <button id="send-btn" onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl transition flex items-center justify-center shadow">
                 Send
             </button>
-        </form>
+        </div>
     </footer>
 
+    <!-- Script Logic -->
     <script>
-        let apiBaseUrl = "";
-        let conversationHistory = [
-            { role: "system", content: "You are a helpful, respectful, and honest assistant." }
-        ];
+        let apiEndpoint = "";
+        let chatHistory = [];
+        let attachedImageBase64 = null;
 
+        // Fetch endpoint on load
         async function fetchEndpoint() {
             try {
                 const res = await fetch('./QWEN_ENDPOINT.json?t=' + Date.now());
                 const data = await res.json();
-                if (data.status === "online" && data.api_base_url) {
-                    apiBaseUrl = data.api_base_url;
-                    document.getElementById("status-text.textContent").textContent = "";
-                    document.getElementById("status-text").innerHTML = `<span class="text-green-400">🟢 Online (Connected to TPU)</span>`;
+                if (data && data.url) {
+                    apiEndpoint = data.url.replace(/\/$/, ""); // Strip trailing slash if present
+                    document.getElementById("status-dot").className = "w-3 h-3 rounded-full bg-green-500";
+                    document.getElementById("status-text").innerText = "Online & Connected";
+                    document.getElementById("status-text").className = "text-green-400 font-medium";
                 } else {
-                    document.getElementById("status-text").innerHTML = `<span class="text-red-400">🔴 Offline (Waiting for Kaggle Notebook to start)</span>`;
+                    throw new Error("URL not found in JSON");
                 }
             } catch (err) {
-                document.getElementById("status-text").innerHTML = `<span class="text-red-400">🔴 Error fetching endpoint configuration</span>`;
+                document.getElementById("status-dot").className = "w-3 h-3 rounded-full bg-red-500";
+                document.getElementById("status-text").innerText = "Offline (Waiting for Kaggle Notebook)";
+                setTimeout(fetchEndpoint, 5000); // Retry every 5s
+            }
+        }
+        fetchEndpoint();
+
+        // Handle Image Attachment
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    attachedImageBase64 = e.target.result; // Data URL
+                    document.getElementById("image-preview").src = attachedImageBase64;
+                    document.getElementById("preview-container").classList.remove("hidden");
+                };
+                reader.readAsDataURL(file);
             }
         }
 
-        // Check endpoint status on load and every 10 seconds
-        fetchEndpoint();
-        setInterval(fetchEndpoint, 10000);
+        function removeImage() {
+            attachedImageBase64 = null;
+            document.getElementById("image-input").value = "";
+            document.getElementById("preview-container").classList.add("hidden");
+        }
 
-        const chatForm = document.getElementById("chat-form");
-        const userInput = document.getElementById("user-input");
-        const chatContainer = document.getElementById("chat-container");
+        // Append Message to Chat Window
+        function appendMessage(role, content, imageUrl = null) {
+            const chatContainer = document.getElementById("chat-container");
+            const isUser = role === "user";
+            
+            const messageDiv = document.createElement("div");
+            messageDiv.className = `flex items-start space-x-4 ${isUser ? "flex-row-reverse space-x-reverse" : ""}`;
 
-        chatForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const text = userInput.value.trim();
-            if (!text || !apiBaseUrl) {
-                if (!apiBaseUrl) alert("Model is currently offline. Please start your Kaggle notebook first.");
+            const avatar = document.createElement("div");
+            avatar.className = `w-8 h-8 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 ${isUser ? "bg-emerald-600" : "bg-blue-600"}`;
+            avatar.innerText = isUser ? "U" : "AI";
+
+            const bubble = document.createElement("div");
+            bubble.className = `p-4 rounded-2xl border max-w-2xl shadow-sm ${isUser ? "bg-blue-600 border-blue-500 text-white" : "bg-[#1e293b] border-slate-700 text-slate-100"}`;
+
+            if (imageUrl) {
+                const img = document.createElement("img");
+                img.src = imageUrl;
+                img.className = "max-h-48 rounded-lg mb-3 object-contain";
+                bubble.appendChild(img);
+            }
+
+            const textSpan = document.createElement("div");
+            if (isUser) {
+                textSpan.innerText = content;
+            } else {
+                textSpan.innerHTML = marked.parse(content);
+            }
+            bubble.appendChild(textSpan);
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(bubble);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            return textSpan; // Return for streaming updates
+        }
+
+        // Send Message Handler
+        async function sendMessage() {
+            if (!apiEndpoint) {
+                alert("Endpoint not connected yet. Please wait for Kaggle to start.");
                 return;
             }
 
-            userInput.value = "";
-            appendMessage("user", text);
-            conversationHistory.push({ role: "user", content: text });
+            const inputEl = document.getElementById("user-input");
+            const text = inputEl.value.trim();
+            if (!text && !attachedImageBase64) return;
 
-            // Add loading placeholder
-            const loadingId = appendMessage("assistant", "Thinking...");
+            inputEl.value = "";
+            inputEl.style.height = "auto";
+
+            // Format content for OpenAI API (supports text + vision multimodal inputs)
+            let userContent = [];
+            if (attachedImageBase64) {
+                userContent.push({
+                    type: "image_url",
+                    image_url: { url: attachedImageBase64 }
+                });
+            }
+            if (text) {
+                userContent.push({ type: "text", text: text });
+            }
+
+            // Display user message in UI
+            appendMessage("user", text || "[Image Attached]", attachedImageBase64);
+            
+            // Push to history array
+            chatHistory.push({ role: "user", content: userContent });
+
+            const currentImage = attachedImageBase64;
+            removeImage(); // Clear preview
+
+            // Create placeholder bubble for assistant response stream
+            const assistantTextSpan = appendMessage("assistant", "Thinking...");
 
             try {
-                const response = await fetch(`${apiBaseUrl}/v1/chat/completions`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const response = await fetch(`${apiEndpoint}/v1/chat/completions`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "Qwen/Qwen3.8-27B",
-                        messages: conversationHistory,
-                        temperature: 0,        // Strict deterministic output
-                        max_tokens: 4096,
-                        stream: false
+                        model: "Qwen/Qwen2.5-VL-7B-Instruct",
+                        messages: chatHistory,
+                        stream: true,
+                        max_tokens: 4096
                     })
                 });
 
-                if (!response.ok) throw new Error(`Server responded with status ${response.status}`);
+                if (!response.ok) throw new Error("Failed to communicate with server");
 
-                const data = await response.json();
-                const reply = data.choices[0].message.content;
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let fullResponse = "";
+                assistantTextSpan.innerHTML = ""; // Clear "Thinking..."
 
-                updateMessage(loadingId, reply);
-                conversationHistory.push({ role: "assistant", content: reply });
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split("\n");
+
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            const dataStr = line.replace("data: ", "").trim();
+                            if (dataStr === "[DONE]") break;
+                            try {
+                                const json = JSON.parse(dataStr);
+                                const token = json.choices[0].delta.content || "";
+                                fullResponse += token;
+                                assistantTextSpan.innerHTML = marked.parse(fullResponse);
+                                document.getElementById("chat-container").scrollTop = document.getElementById("chat-container").scrollHeight;
+                            } catch (e) {}
+                        }
+                    }
+                }
+
+                // Push assistant response to history
+                chatHistory.push({ role: "assistant", content: fullResponse });
 
             } catch (err) {
-                updateMessage(loadingId, `⚠️ Error communicating with TPU backend: ${err.message}`);
+                assistantTextSpan.innerText = "Error: " + err.message;
             }
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById("user-input");
+        textarea.addEventListener("input", function() {
+            this.style.height = "auto";
+            this.style.height = (this.scrollHeight) + "px";
         });
 
-        function appendMessage(role, text) {
-            const id = 'msg-' + Date.now();
-            const isUser = role === 'user';
-            const html = `
-                <div id="${id}" class="flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}">
-                    <div class="${isUser ? 'bg-purple-600' : 'bg-blue-600'} text-white rounded-full h-8 w-8 flex items-center justify-center font-bold text-xs shrink-0">
-                        ${isUser ? 'YOU' : 'AI'}
-                    </div>
-                    <div class="bg-gray-800 p-3 rounded-lg shadow max-w-[80%] text-sm leading-relaxed overflow-x-auto">
-                        ${isUser ? escapeHtml(text) : marked.parse(text)}
-                    </div>
-                </div>
-            `;
-            chatContainer.insertAdjacentHTML('beforeend', html);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            return id;
-        }
-
-        function updateMessage(id, text) {
-            const el = document.getElementById(id);
-            if (el) {
-                const contentDiv = el.querySelector('div:nth-child(2)');
-                contentDiv.innerHTML = marked.parse(text);
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+        // Enter key to send
+        textarea.addEventListener("keydown", function(e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
             }
-        }
-
-        function escapeHtml(string) {
-            return string.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
+        });
     </script>
 </body>
 </html>
