@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gemma chat</title>
+</head>
+<body style="font-family:sans-serif;padding:2rem">
+<p id="msg">Looking up the current server address...</p>
+<script>
+const RAW = "https://raw.githubusercontent.com/USER/REPO/BRANCH/gemma/endpoint.json";
+const msg = document.getElementById("msg");
+fetch(RAW + "?t=" + Date.now(), { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(d => {
+    const u = new URL(d.url);
+    if (u.protocol !== "https:" || !u.hostname.endsWith(".trycloudflare.com"))
+      throw new Error("unexpected address");
+    msg.textContent = "Redirecting to " + u.origin + " ...";
+    location.replace(u.href);
+  })
+  .catch(e => {
+    msg.textContent = "Server address not available. Is the Kaggle notebook running? (" + e.message + ")";
+  });
+</script>
+</body>
+</html>
