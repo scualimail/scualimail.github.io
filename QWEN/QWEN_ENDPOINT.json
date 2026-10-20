@@ -1,0 +1,9 @@
+{
+  "status": "offline",
+  "updated_at": "2026-10-20T00:00:00Z",
+  "tunnel_url": "",
+  "chat_ui_url": "https://scualimail.github.io/QWEN/QWEN_Chat.html",
+  "api_base_url": "",
+  "temperature": 0,
+  "max_context_window": 65536
+}
