@@ -1,7 +1,18 @@
 name: Deploy and Run Qwen TPU on Kaggle
 
 on:
-  workflow_dispatch: # Manual trigger button under Actions tab
+  workflow_dispatch: # Keeps the manual button active
+  schedule:
+    # Runs ONLY tomorrow (Oct 21, 2026) at 3:00 AM UTC (5:00 AM Brussels time)
+    - cron: '0 3 21 10 *'
+
+jobs:
+  run-kaggle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      # ... (and the rest of your steps follow below)
 
 jobs:
   run-kaggle:
