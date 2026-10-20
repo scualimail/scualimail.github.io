@@ -3,7 +3,7 @@ name: Deploy and Run Qwen TPU on Kaggle
 on:
   workflow_dispatch: # Keeps the manual button active
   schedule:
-    # Runs ONLY tomorrow (Oct 21, 2026) at 3:00 AM UTC (5:00 AM Brussels time)
+    # Runs ONLY on Oct 21, 2026 at 3:00 AM UTC (5:00 AM Brussels time)
     - cron: '0 3 21 10 *'
 
 jobs:
@@ -21,14 +21,30 @@ jobs:
       - name: Install Kaggle CLI
         run: pip install kaggle
 
-      - name: Configure Kaggle Credentials
+      - name: Configure Kaggle Credentials Safely
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
+          python3 -c "
+          import json, os
+          # Automatically strip any accidental quotes or whitespace from secrets
+          user = os.environ.get('KAGGLE_USERNAME', '').strip('\"\' \n\r')
+          key = os.environ.get('KAGGLE_KEY', '').strip('\"\' \n\r')
+          
+          if not user or not key:
+              raise ValueError('KAGGLE_USERNAME or KAGGLE_KEY secret is missing or empty!')
+              
+          config_dir = os.path.expanduser('~/.kaggle')
+          os.makedirs(config_dir, exist_ok=True)
+          
+          config_path = os.path.join(config_dir, 'kaggle.json')
+          with open(config_path, 'w') as f:
+              json.dump({'username': user, 'key': key}, f)
+              
+          os.chmod(config_path, 0o600)
+          print('✅ Clean kaggle.json created for user:', user)
+          "
 
       - name: Inject GitHub PAT into Notebook safely
         env:
