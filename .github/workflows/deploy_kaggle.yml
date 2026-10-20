@@ -1,7 +1,7 @@
 name: Deploy and Run Qwen TPU on Kaggle
 
 on:
-  workflow_dispatch: # Allows manual trigger button in GitHub Actions tab
+  workflow_dispatch: # Manual trigger button under Actions tab
 
 jobs:
   run-kaggle:
@@ -26,6 +26,13 @@ jobs:
           mkdir -p ~/.kaggle
           echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
           chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Inject GitHub PAT into Notebook safely
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          # Replaces the placeholder string inside your notebook with your secure GitHub token
+          sed -i "s|REPLACE_ME_GH_PAT|$GH_PAT|g" QWEN/qwen_tpu_notebook.ipynb
 
       - name: Push and Trigger Kaggle Notebook
         run: |
