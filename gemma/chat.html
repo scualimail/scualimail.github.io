@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gemma chat</title>
+  <style>
+    body{font-family:sans-serif;max-width:800px;margin:0 auto;padding:1rem}
+    #log{min-height:50vh}
+    .u,.a{white-space:pre-wrap;padding:.6rem .8rem;margin:.5rem 0;border-radius:8px}
+    .u{background:#e8f0fe}.a{background:#f1f3f4}
+    textarea{width:100%;box-sizing:border-box}
+    #status{color:#666;font-size:.9rem}
+  </style>
+</head>
+<body>
+<p id="status">Looking up the server...</p>
+<div id="log"></div>
+<textarea id="q" rows="3" placeholder="Message (Ctrl+Enter to send)"></textarea>
+<button id="send">Send</button>
+<button id="clear">New chat</button>
+<button id="rekey">Change key</button>
+
+<script>
+const RAW = "https://raw.githubusercontent.com/scualimail/scualimail.github.io/main/gemma/endpoint.json";
+const $ = id => document.getElementById(id);
+
+// key: from #key=... once, else from this browser's storage
+let key = new URLSearchParams(location.hash.slice(1)).get("key") || localStorage.getItem("gemma_key");
+if (key) {
+  localStorage.setItem("gemma_key", key);
+  history.replaceState(null, "", location.pathname);
+}
+if (!key) {
+  key = prompt("API key");
+  if (key) localStorage.setItem("gemma_key", key);
+}
+
+let ep = null, history_ = [];
+
+async function getEndpoint() {
+  const r = await fetch(RAW + "?t=" + Date.now(), {cache: "no-store"});
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const d = await r.json();
+  const u = new URL(d.url);
+  if (u.protocol !== "https:" || !u.hostname.endsWith(".trycloudflare.com"))
+    throw new Error("unexpected address");
+  return d;
+}
+
+function add(cls, text) {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.textContent = text;
+  $("log").appendChild(div);
+  return div;
+}
+
+async function send() {
+  const text = $("q").value.trim();
+  if (!text) return;
+  $("q").value = "";
+  add("u", text);
+  history_.push({role: "user", content: text});
+  const box = add("a", "...");
+  try {
+    if (!ep) ep = await getEndpoint();
+    const r = await fetch(ep.api + "/chat/completions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "Authorization": "Bearer " + key},
+      body: JSON.stringify({model: ep.model, messages: history_})
+    });
+    if (r.status === 401) {
+      localStorage.removeItem("gemma_key");
+      throw new Error("Wrong API key. Click 'Change key'.");
+    }
+    const data = await r.json();
+    const reply = data.choices?.[0]?.message?.content ?? JSON.stringify(data);
+    box.textContent = reply;
+    history_.push({role: "assistant", content: reply});
+  } catch (e) {
+    ep = null;  // re-read the address next time (tunnel may have changed)
+    box.textContent = "Error: " + e.message;
+    history_.pop();
+  }
+}
+
+$("send").onclick = send;
+$("q").onkeydown = e => { if (e.ctrlKey && e.key === "Enter") send(); };
+$("clear").onclick = () => { history_ = []; $("log").innerHTML = ""; };
+$("rekey").onclick = () => {
+  const k = prompt("New API key");
+  if (k) { key = k; localStorage.setItem("gemma_key", k); }
+};
+
+getEndpoint()
+  .then(d => { ep = d; $("status").textContent = "Connected to " + new URL(d.url).host; })
+  .catch(e => { $("status").textContent = "Server address not available (" + e.message + ")"; });
+</script>
+</body>
+</html>
