@@ -371,9 +371,9 @@
             apiKey = localStorage.getItem("qwen35_key") || "";
             $("key-input").value = apiKey;
 
-            // 1) Try QWEN_EDPOINT_2T4.json next to this page
+            // 1) Try QWEN_ENDPOINT_2T4.json next to this page
             try {
-                const res = await fetch("./QWEN_EDPOINT_2T4.json?t=" + Date.now());
+                const res = await fetch("./QWEN_ENDPOINT_2T4.json?t=" + Date.now());
                 const data = await res.json();
                 if (data && data.url && await connect(data.url)) return;
             } catch (e) {}
