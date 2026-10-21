@@ -1,11 +1,7 @@
 name: Deploy and Run Qwen TPU on Kaggle
 
 on:
-  workflow_dispatch: # Keeps the manual button active
-  schedule:
-    # Runs ONLY on Oct 21, 2026 at 3:00 AM UTC (5:00 AM Brussels time)
-    - cron: '0 3 21 10 *'
-
+  workflow_dispatch: # Allows both cron-job.org HTTP triggers and manual UI button clicks
 jobs:
   run-kaggle:
     runs-on: ubuntu-latest
