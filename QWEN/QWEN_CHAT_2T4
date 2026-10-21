@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qwen3.5 Chat UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+</head>
+<body class="bg-[#0f172a] text-[#f8fafc] h-screen flex overflow-hidden font-sans">
+
+    <!-- Sidebar -->
+    <aside class="w-72 bg-[#1e293b] border-r border-slate-700 flex flex-col h-full flex-shrink-0">
+        <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+            <h1 class="font-bold text-lg tracking-wide text-slate-100">Chat History</h1>
+            <button onclick="createNewChat()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition shadow">+ New Chat</button>
+        </div>
+
+        <div id="sidebar-chats" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
+
+        <!-- Connection panel -->
+        <div class="p-4 border-t border-slate-700 text-xs text-slate-400 space-y-2">
+            <input id="url-input" type="text" placeholder="https://xxxx.trycloudflare.com"
+                   class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500">
+            <input id="key-input" type="password" placeholder="API key (optional)"
+                   class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500">
+            <button id="connect-btn" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg py-1.5 transition">Connect</button>
+            <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse" id="sidebar-status-dot"></span>
+                    <span id="sidebar-status-text">Not connected</span>
+                </div>
+                <span>2x T4</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="flex-1 flex flex-col h-full min-w-0">
+        <header class="bg-[#1e293b] border-b border-slate-700 px-6 py-4 flex items-center justify-between shadow-md flex-shrink-0">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-bold tracking-wide">Qwen3.5 27B Vision Chat</span>
+                <span class="bg-blue-600 text-xs px-2.5 py-1 rounded-full font-semibold uppercase tracking-wider">vLLM 2x T4</span>
+            </div>
+            <div class="hidden sm:flex items-center space-x-4 text-xs text-slate-400">
+                <label class="flex items-center space-x-1.5 cursor-pointer">
+                    <input type="checkbox" id="thinking-toggle" class="accent-blue-600">
+                    <span>Thinking</span>
+                </label>
+                <span>Context: <strong id="ctx-used" class="text-slate-200">0</strong> / <strong class="text-slate-200">65,536</strong></span>
+                <span>Temp: <strong class="text-slate-200">0.0</strong></span>
+                <span>Images: <strong class="text-slate-200">max 25</strong></span>
+            </div>
+        </header>
+
+        <main id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6"></main>
+
+        <!-- Pending image previews -->
+        <div id="preview-container" class="max-w-4xl w-full mx-auto px-6 hidden flex-shrink-0">
+            <div id="preview-list" class="flex flex-wrap gap-2 mb-2"></div>
+            <div id="preview-info" class="text-xs text-slate-400 mb-2"></div>
+        </div>
+
+        <footer class="bg-[#1e293b] border-t border-slate-700 p-4 shadow-lg flex-shrink-0">
+            <div class="max-w-4xl mx-auto flex items-end space-x-3">
+                <label class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-slate-200 p-3 rounded-xl transition flex items-center justify-center shadow" title="Attach up to 25 images">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <input type="file" id="image-input" accept="image/*" multiple class="hidden">
+                </label>
+
+                <textarea id="user-input" rows="1" placeholder="Type your prompt here... (Enter to send, Shift+Enter for new line)" class="flex-1 bg-[#0f172a] border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 resize-none max-h-32"></textarea>
+
+                <button id="send-btn" type="button" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl transition flex items-center justify-center shadow">Send</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // ---------- Config ----------
+        const MAX_IMAGES   = 25;      // must match --limit-mm-per-prompt
+        const MAX_CONTEXT  = 65536;   // must match --max-model-len
+        const MAX_NEW_TOK  = 4096;
+        const MAX_SIDE     = 1024;    // downscale images client-side to save context
+        const THUMB_SIDE   = 96;
+
+        // ---------- State ----------
+        let apiEndpoint = "";
+        let apiKey = "";
+        let targetModelName = "cyankiwi/Qwen3.5-27B-AWQ-4bit";
+        let chats = [];
+        let currentChatId = null;
+        let pendingImages = [];          // [{full, thumb, tokens}]
+        const fullImages = new Map();    // msgId -> [{full, tokens}] (memory only, not persisted)
+        let abortController = null;
+        let generating = false;
+
+        // ---------- Helpers ----------
+        const $ = (id) => document.getElementById(id);
+        const estTextTokens = (s) => Math.ceil((s || "").length / 3.5);
+        const safeMarkdown = (t) => DOMPurify.sanitize(marked.parse(t || ""));
+
+        function setStatus(state, text) {
+            const colors = { ok: "bg-green-500", bad: "bg-red-500", wait: "bg-yellow-500 animate-pulse" };
+            $("sidebar-status-dot").className = "w-2.5 h-2.5 rounded-full " + colors[state];
+            $("sidebar-status-text").innerText = text;
+        }
+
+        // ---------- Persistence (text + tiny thumbnails only) ----------
+        function saveChats() {
+            try {
+                localStorage.setItem("qwen35_chats", JSON.stringify(chats));
+            } catch (e) {
+                console.warn("localStorage full", e);
+            }
+        }
+
+        function initChats() {
+            try { chats = JSON.parse(localStorage.getItem("qwen35_chats") || "[]"); } catch (e) { chats = []; }
+            if (chats.length === 0) createNewChat(false); else currentChatId = chats[0].id;
+            renderSidebar();
+            renderActiveChat();
+        }
+
+        function createNewChat(switchNow = true) {
+            const c = { id: "chat_" + Date.now(), title: "New Chat", messages: [] };
+            chats.unshift(c);
+            saveChats();
+            if (switchNow) { currentChatId = c.id; renderSidebar(); renderActiveChat(); }
+        }
+
+        function switchChat(id) { currentChatId = id; renderSidebar(); renderActiveChat(); }
+
+        function deleteChat(id, ev) {
+            ev.stopPropagation();
+            const c = chats.find(x => x.id === id);
+            if (c) c.messages.forEach(m => fullImages.delete(m.id));
+            chats = chats.filter(x => x.id !== id);
+            if (chats.length === 0) createNewChat(false);
+            if (currentChatId === id) currentChatId = chats[0].id;
+            saveChats(); renderSidebar(); renderActiveChat();
+        }
+
+        function getActiveChat() {
+            let c = chats.find(x => x.id === currentChatId);
+            if (!c) { c = chats[0]; currentChatId = c.id; }
+            return c;
+        }
+
+        // ---------- Rendering ----------
+        function renderSidebar() {
+            const box = $("sidebar-chats");
+            box.innerHTML = "";
+            chats.forEach(chat => {
+                const active = chat.id === currentChatId;
+                const div = document.createElement("div");
+                div.className = `group flex items-center justify-between p-3 rounded-xl cursor-pointer transition text-sm ${active ? "bg-blue-600 text-white font-medium shadow" : "hover:bg-slate-700 text-slate-300"}`;
+                const t = document.createElement("span");
+                t.className = "truncate flex-1 mr-2";
+                t.innerText = chat.title;
+                div.appendChild(t);
+                const del = document.createElement("button");
+                del.className = `text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition ${active ? "hover:bg-blue-700 text-white" : "hover:bg-slate-600 text-slate-400"}`;
+                del.innerHTML = "&times;";
+                del.onclick = (e) => deleteChat(chat.id, e);
+                div.appendChild(del);
+                div.onclick = () => switchChat(chat.id);
+                box.appendChild(div);
+            });
+        }
+
+        function welcomeNode() {
+            const d = document.createElement("div");
+            d.className = "flex items-start space-x-4 max-w-4xl mx-auto w-full";
+            d.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white flex-shrink-0">AI</div>
+                <div class="bg-[#1e293b] p-4 rounded-2xl border border-slate-700 max-w-2xl shadow-sm text-slate-100">
+                    <p>Hello! I'm Qwen3.5 27B (4-bit AWQ) running on your Kaggle 2x T4 node. I support up to 25 images per request, a 64k context window, and temperature 0.0.</p>
+                </div>`;
+            return d;
+        }
+
+        function renderActiveChat() {
+            const box = $("chat-container");
+            box.innerHTML = "";
+            const chat = getActiveChat();
+            if (chat.messages.length === 0) box.appendChild(welcomeNode());
+            else chat.messages.forEach(m => appendMessageNode(m.role, m.content, m.thumbs || []));
+            box.scrollTop = box.scrollHeight;
+            updateContextMeter();
+        }
+
+        function appendMessageNode(role, content, thumbs = []) {
+            const box = $("chat-container");
+            const isUser = role === "user";
+
+            const row = document.createElement("div");
+            row.className = `flex items-start space-x-4 max-w-4xl mx-auto w-full ${isUser ? "flex-row-reverse space-x-reverse" : ""}`;
+
+            const avatar = document.createElement("div");
+            avatar.className = `w-8 h-8 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 ${isUser ? "bg-emerald-600" : "bg-blue-600"}`;
+            avatar.innerText = isUser ? "U" : "AI";
+
+            const bubble = document.createElement("div");
+            bubble.className = `p-4 rounded-2xl border max-w-2xl shadow-sm ${isUser ? "bg-blue-600 border-blue-500 text-white" : "bg-[#1e293b] border-slate-700 text-slate-100"}`;
+
+            if (thumbs.length) {
+                const grid = document.createElement("div");
+                grid.className = "flex flex-wrap gap-2 mb-3";
+                thumbs.forEach(src => {
+                    const img = document.createElement("img");
+                    img.src = src;
+                    img.className = "h-16 w-16 object-cover rounded-lg border border-slate-500";
+                    grid.appendChild(img);
+                });
+                bubble.appendChild(grid);
+            }
+
+            const textEl = document.createElement("div");
+            textEl.className = "prose-sm break-words";
+            if (isUser) { textEl.style.whiteSpace = "pre-wrap"; textEl.innerText = content; }
+            else textEl.innerHTML = safeMarkdown(content);
+            bubble.appendChild(textEl);
+
+            row.appendChild(avatar);
+            row.appendChild(bubble);
+            box.appendChild(row);
+            box.scrollTop = box.scrollHeight;
+            return textEl;
+        }
+
+        // ---------- Images ----------
+        function loadImage(src) {
+            return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+        }
+        function readFile(file) {
+            return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+        }
+        function drawScaled(img, maxSide, quality) {
+            const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const c = document.createElement("canvas");
+            c.width = w; c.height = h;
+            const ctx = c.getContext("2d");
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            return { url: c.toDataURL("image/jpeg", quality), w, h };
+        }
+        async function processImage(file) {
+            const img = await loadImage(await readFile(file));
+            const full = drawScaled(img, MAX_SIDE, 0.85);
+            const thumb = drawScaled(img, THUMB_SIDE, 0.6);
+            // Rough vision token estimate: one token per 32x32 block
+            const tokens = Math.ceil(full.w / 32) * Math.ceil(full.h / 32);
+            return { full: full.url, thumb: thumb.url, tokens };
+        }
+
+        function renderPreviews() {
+            const list = $("preview-list");
+            list.innerHTML = "";
+            pendingImages.forEach((p, idx) => {
+                const wrap = document.createElement("div");
+                wrap.className = "relative inline-block";
+                const img = document.createElement("img");
+                img.src = p.thumb;
+                img.className = "h-16 w-16 object-cover rounded-lg border border-slate-600 shadow";
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow hover:bg-red-700";
+                btn.innerHTML = "&times;";
+                btn.onclick = () => { pendingImages.splice(idx, 1); renderPreviews(); };
+                wrap.appendChild(img); wrap.appendChild(btn);
+                list.appendChild(wrap);
+            });
+            const total = pendingImages.reduce((s, p) => s + p.tokens, 0);
+            $("preview-info").innerText = pendingImages.length
+                ? `${pendingImages.length}/${MAX_IMAGES} images (~${total.toLocaleString()} tokens)`
+                : "";
+            $("preview-container").classList.toggle("hidden", pendingImages.length === 0);
+            updateContextMeter();
+        }
+
+        $("image-input").addEventListener("change", async (e) => {
+            const files = Array.from(e.target.files || []);
+            e.target.value = "";
+            for (const f of files) {
+                if (pendingImages.length >= MAX_IMAGES) { alert(`Maximum ${MAX_IMAGES} images per message.`); break; }
+                try { pendingImages.push(await processImage(f)); }
+                catch (err) { console.warn("Could not read image", f.name, err); }
+            }
+            renderPreviews();
+        });
+
+        // ---------- Context budgeting ----------
+        // Build the API message list. Images are included newest-first until either
+        // the 25-image request limit or the context budget is reached; older ones are dropped.
+        function buildApiMessages(chat, extraSystem) {
+            const msgs = chat.messages;
+            const textTokens = msgs.reduce((s, m) => s + estTextTokens(m.content) + 8, 0);
+            let budget = MAX_CONTEXT - MAX_NEW_TOK - textTokens - 200;
+            let imageCount = 0;
+            const keep = new Map(); // msgId -> images to include
+
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                const m = msgs[i];
+                const imgs = fullImages.get(m.id);
+                if (!imgs || !imgs.length) continue;
+                const cost = imgs.reduce((s, x) => s + x.tokens, 0);
+                if (imageCount + imgs.length <= MAX_IMAGES && cost <= budget) {
+                    keep.set(m.id, imgs);
+                    imageCount += imgs.length;
+                    budget -= cost;
+                }
+            }
+
+            return msgs.map(m => {
+                const imgs = keep.get(m.id);
+                if (imgs && imgs.length) {
+                    return {
+                        role: m.role,
+                        content: [
+                            ...imgs.map(x => ({ type: "image_url", image_url: { url: x.full } })),
+                            { type: "text", text: m.content }
+                        ]
+                    };
+                }
+                return { role: m.role, content: m.content };
+            });
+        }
+
+        function updateContextMeter() {
+            const chat = getActiveChat();
+            let used = chat.messages.reduce((s, m) => s + estTextTokens(m.content) + 8, 0);
+            chat.messages.forEach(m => {
+                const imgs = fullImages.get(m.id);
+                if (imgs) used += imgs.reduce((s, x) => s + x.tokens, 0);
+            });
+            used += pendingImages.reduce((s, p) => s + p.tokens, 0);
+            const el = $("ctx-used");
+            el.innerText = "~" + used.toLocaleString();
+            el.className = used > MAX_CONTEXT - MAX_NEW_TOK ? "text-red-400" : "text-slate-200";
+        }
+
+        // ---------- Connection ----------
+        async function connect(url) {
+            apiEndpoint = (url || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+            if (!apiEndpoint) return false;
+            setStatus("wait", "Connecting...");
+            try {
+                const headers = apiKey ? { Authorization: "Bearer " + apiKey } : {};
+                const res = await fetch(`${apiEndpoint}/v1/models`, { headers });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                if (data.data && data.data[0]) targetModelName = data.data[0].id;
+                setStatus("ok", "Connected");
+                $("sidebar-status-text").className = "text-green-400 font-medium";
+                $("url-input").value = apiEndpoint;
+                localStorage.setItem("qwen35_url", apiEndpoint);
+                return true;
+            } catch (err) {
+                setStatus("bad", "Offline");
+                return false;
+            }
+        }
+
+        async function autoConnect() {
+            apiKey = localStorage.getItem("qwen35_key") || "";
+            $("key-input").value = apiKey;
+
+            // 1) Try QWEN_ENDPOINT.json next to this page
+            try {
+                const res = await fetch("./QWEN_ENDPOINT.json?t=" + Date.now());
+                const data = await res.json();
+                if (data && data.url && await connect(data.url)) return;
+            } catch (e) {}
+
+            // 2) Fall back to the last URL used
+            const saved = localStorage.getItem("qwen35_url");
+            if (saved) { $("url-input").value = saved; if (await connect(saved)) return; }
+            setStatus("bad", "Paste the tunnel URL and press Connect");
+        }
+
+        $("connect-btn").addEventListener("click", async () => {
+            apiKey = $("key-input").value.trim();
+            localStorage.setItem("qwen35_key", apiKey);
+            await connect($("url-input").value);
+        });
+
+        // ---------- Sending ----------
+        async function sendMessage() {
+            if (generating) return;
+            if (!apiEndpoint) { alert("Not connected. Paste the tunnel URL in the sidebar and press Connect."); return; }
+
+            const input = $("user-input");
+            const text = input.value.trim();
+            if (!text && pendingImages.length === 0) return;
+
+            input.value = "";
+            input.style.height = "auto";
+
+            const chat = getActiveChat();
+            if (chat.messages.length === 0 && text) {
+                chat.title = text.length > 28 ? text.substring(0, 28) + "..." : text;
+                renderSidebar();
+            }
+
+            const msg = {
+                id: "m_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                role: "user",
+                content: text || "Describe the attached image(s).",
+                thumbs: pendingImages.map(p => p.thumb)
+            };
+            if (pendingImages.length) fullImages.set(msg.id, pendingImages.map(p => ({ full: p.full, tokens: p.tokens })));
+            chat.messages.push(msg);
+            saveChats();
+
+            pendingImages = [];
+            renderPreviews();
+            renderActiveChat();
+
+            const apiMessages = buildApiMessages(chat);
+            const outEl = appendMessageNode("assistant", "Thinking...");
+
+            generating = true;
+            abortController = new AbortController();
+            $("send-btn").innerText = "Stop";
+            $("send-btn").className = $("send-btn").className.replace("bg-blue-600 hover:bg-blue-500", "bg-red-600 hover:bg-red-500");
+
+            let full = "";
+            let reasoningChars = 0;
+            try {
+                const headers = { "Content-Type": "application/json" };
+                if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+
+                const response = await fetch(`${apiEndpoint}/v1/chat/completions`, {
+                    method: "POST",
+                    headers,
+                    signal: abortController.signal,
+                    body: JSON.stringify({
+                        model: targetModelName,
+                        messages: apiMessages,
+                        stream: true,
+                        temperature: 0.0,
+                        max_tokens: MAX_NEW_TOK,
+                        chat_template_kwargs: { enable_thinking: $("thinking-toggle").checked }
+                    })
+                });
+
+                if (!response.ok) {
+                    let detail = "";
+                    try { detail = (await response.text()).slice(0, 300); } catch (e) {}
+                    throw new Error(`Server HTTP error ${response.status} ${detail}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let buf = "";
+                outEl.innerHTML = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buf += decoder.decode(value, { stream: true });
+                    const lines = buf.split("\n");
+                    buf = lines.pop(); // keep any partial line for the next chunk
+
+                    for (const line of lines) {
+                        if (!line.startsWith("data:")) continue;
+                        const data = line.slice(5).trim();
+                        if (!data || data === "[DONE]") continue;
+                        try {
+                            const delta = JSON.parse(data).choices?.[0]?.delta || {};
+                            const r = delta.reasoning_content || delta.reasoning;
+                            if (r) reasoningChars += r.length;
+                            if (delta.content) full += delta.content;
+
+                            if (full) outEl.innerHTML = safeMarkdown(full);
+                            else if (reasoningChars) outEl.innerText = `Thinking... (${reasoningChars} chars)`;
+                            $("chat-container").scrollTop = $("chat-container").scrollHeight;
+                        } catch (e) {}
+                    }
+                }
+            } catch (err) {
+                if (err.name === "AbortError") {
+                    if (!full) outEl.innerText = "(stopped)";
+                } else {
+                    outEl.innerText = "Error: " + err.message;
+                }
+            } finally {
+                if (full) {
+                    chat.messages.push({ id: "m_" + Date.now() + "_a", role: "assistant", content: full, thumbs: [] });
+                    saveChats();
+                }
+                generating = false;
+                abortController = null;
+                $("send-btn").innerText = "Send";
+                $("send-btn").className = $("send-btn").className.replace("bg-red-600 hover:bg-red-500", "bg-blue-600 hover:bg-blue-500");
+                updateContextMeter();
+            }
+        }
+
+        // ---------- Events ----------
+        $("send-btn").addEventListener("click", () => {
+            if (generating && abortController) abortController.abort();
+            else sendMessage();
+        });
+
+        const textarea = $("user-input");
+        textarea.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        });
+        textarea.addEventListener("input", function () {
+            this.style.height = "auto";
+            this.style.height = this.scrollHeight + "px";
+            updateContextMeter();
+        });
+
+        // ---------- Init ----------
+        initChats();
+        autoConnect();
+    </script>
+</body>
+</html>
