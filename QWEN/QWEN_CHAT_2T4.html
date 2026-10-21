@@ -346,6 +346,7 @@
         }
 
         // ---------- Connection ----------
+// ---------- Connection ----------
         async function connect(url) {
             apiEndpoint = (url || "").trim().replace(/\/+$/, "").replace(/\/v1\/models$/, "").replace(/\/v1$/, "");
             if (!apiEndpoint) return false;
@@ -355,7 +356,15 @@
                 const res = await fetch(`${apiEndpoint}/v1/models`, { headers });
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 const data = await res.json();
-                if (data.data && data.data[0]) targetModelName = data.data[0].id;
+                
+                // Forcefully look for your exact model, or fall back to the first available one, or default to your AWQ string
+                if (data.data && data.data.length > 0) {
+                    const found = data.data.find(m => m.id.includes("Qwen3.5-27B-AWQ-4bit"));
+                    targetModelName = found ? found.id : data.data[0].id;
+                } else {
+                    targetModelName = "cyankiwi/Qwen3.5-27B-AWQ-4bit";
+                }
+
                 setStatus("ok", "Connected");
                 $("sidebar-status-text").className = "text-green-400 font-medium";
                 $("url-input").value = apiEndpoint;
