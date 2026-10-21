@@ -347,7 +347,7 @@
 
         // ---------- Connection ----------
         async function connect(url) {
-            apiEndpoint = (url || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+            apiEndpoint = (url || "").trim().replace(/\/+$/, "").replace(/\/v1\/models$/, "").replace(/\/v1$/, "");
             if (!apiEndpoint) return false;
             setStatus("wait", "Connecting...");
             try {
