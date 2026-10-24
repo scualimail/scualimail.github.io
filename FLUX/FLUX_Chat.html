@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLUX.2 klein chat</title>
+<style>
+:root{--bg:#f3f4f6;--panel:#fff;--ink:#14171c;--mute:#667085;--line:#dfe2e8;--acc:#2f4bff;--accink:#fff;--err:#b42318}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--panel:#181b21;--ink:#e8eaee;--mute:#8d95a3;--line:#2a2f38;--acc:#7b8dff;--accink:#0f1115;--err:#ff8a80}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;font-weight:650;margin:0;letter-spacing:-.01em}
+#status{font-size:13px;color:var(--mute);margin-left:auto;display:flex;align-items:center;gap:6px}
+#dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+#dot.ok{background:#12b76a}#dot.bad{background:var(--err)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px}
+button:hover{border-color:var(--acc)}
+button.primary{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#log{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:18px}
+.turn{max-width:760px;width:100%;margin:0 auto}
+.me{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.me .refs,.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.refs img,.chips img{height:64px;border-radius:6px;border:1px solid var(--line);display:block}
+.out img.result{max-width:100%;border-radius:10px;border:1px solid var(--line);display:block}
+.out .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.out .row button{font-size:13px;padding:4px 10px}
+details{margin-top:8px;color:var(--mute);font-size:13px}
+details p{margin:6px 0 0;white-space:pre-wrap}
+.wait,.err{color:var(--mute)}.err{color:var(--err)}
+.empty{margin:auto;text-align:center;color:var(--mute);max-width:420px}
+.empty b{color:var(--ink);display:block;font-size:18px;margin-bottom:6px}
+footer{border-top:1px solid var(--line);background:var(--panel);padding:10px 16px}
+.box{max-width:760px;margin:0 auto}
+.chip{position:relative}
+.chip button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;padding:0;line-height:1;font-size:12px}
+textarea{width:100%;resize:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);min-height:46px;max-height:180px}
+.opts{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:13px;color:var(--mute)}
+.opts select,.opts input[type=number]{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 6px}
+.opts input[type=number]{width:96px}
+.opts .sp{margin-left:auto}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);width:min(440px,92vw)}
+dialog label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mute)}
+dialog input{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg)}
+body.drag footer{outline:2px dashed var(--acc);outline-offset:-6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>FLUX.2 klein 4B</h1>
+  <div id="status"><span id="dot"></span><span id="stxt">not connected</span></div>
+  <button id="cfg">Settings</button>
+</header>
+
+<main id="log" aria-live="polite">
+  <div class="empty" id="empty"><b>Describe an image, or drop one in to edit it.</b>Attach up to 4 reference images. Click “Use as reference” on a result to keep editing it.</div>
+</main>
+
+<footer>
+  <div class="box">
+    <div class="chips" id="chips"></div>
+    <textarea id="prompt" rows="1" placeholder="Describe an image, or describe the edit to your attached images…"></textarea>
+    <div class="opts">
+      <button id="attach" type="button">Attach images</button>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <label>Size <select id="size"><option>1024x1024</option><option>1152x896</option><option>896x1152</option><option>1344x768</option><option>768x1344</option><option value="auto">Match reference</option></select></label>
+      <label>Seed <input type="number" id="seed" placeholder="random"></label>
+      <button class="primary sp" id="send">Generate</button>
+    </div>
+  </div>
+</footer>
+
+<dialog id="dlg">
+  <form method="dialog">
+    <strong>Connection</strong>
+    <label for="ep">Server URL</label><input id="ep" placeholder="https://….trycloudflare.com">
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button value="cancel">Cancel</button><button class="primary" id="save" value="ok">Save</button></div>
+  </form>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+let endpoint = "", refs = [];
+
+async function resolveEndpoint(){
+  const q = new URLSearchParams(location.search).get("endpoint");
+  if (q) return q;
+  try { const r = await fetch("FLUX_ENDPOINT.json?t=" + Date.now()); if (r.ok) return (await r.json()).endpoint; } catch(e){}
+  return localStorage.getItem("flux_ep") || "";
+}
+async function ping(){
+  $("dot").className = ""; $("stxt").textContent = "connecting…";
+  try {
+    const r = await fetch(endpoint.replace(/\/$/,"") + "/health"); const j = await r.json();
+    $("dot").className = "ok"; $("stxt").textContent = "connected";
+  } catch(e){ $("dot").className = "bad"; $("stxt").textContent = endpoint ? "unreachable" : "no server URL"; }
+}
+(async()=>{ endpoint = (await resolveEndpoint()).replace(/\/$/,""); $("ep").value = endpoint; ping(); })();
+
+$("cfg").onclick = () => $("dlg").showModal();
+$("dlg").addEventListener("close", () => {
+  if ($("dlg").returnValue !== "ok") return;
+  endpoint = $("ep").value.trim().replace(/\/$/,"");
+  localStorage.setItem("flux_ep", endpoint); ping();
+});
+
+function renderChips(){
+  $("chips").innerHTML = "";
+  refs.forEach((f,i) => {
+    const d = document.createElement("div"); d.className = "chip";
+    const im = new Image(); im.src = URL.createObjectURL(f); im.alt = "reference " + (i+1);
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "×"; b.setAttribute("aria-label","Remove reference " + (i+1));
+    b.onclick = () => { refs.splice(i,1); renderChips(); };
+    d.append(im,b); $("chips").append(d);
+  });
+}
+function addFiles(list){
+  for (const f of list) if (f.type.startsWith("image/") && refs.length < 4) refs.push(f);
+  renderChips();
+}
+$("attach").onclick = () => $("file").click();
+$("file").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drag"); });
+addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("drag"); });
+addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag"); addFiles(e.dataTransfer.files); });
+$("prompt").addEventListener("paste", e => addFiles([...e.clipboardData.files]));
+$("prompt").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight,180) + "px"; });
+$("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+$("send").onclick = send;
+
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+function scroll(){ $("log").scrollTop = $("log").scrollHeight; }
+
+async function send(){
+  const prompt = $("prompt").value.trim();
+  if (!prompt || !endpoint) { if (!endpoint) $("dlg").showModal(); return; }
+  $("empty")?.remove();
+  const sent = refs.slice(), size = $("size").value, seed = $("seed").value;
+
+  const turn = el("section","turn"), me = el("div","me"); me.append(el("div","",prompt));
+  if (sent.length){ const r = el("div","refs"); sent.forEach(f => { const i = new Image(); i.src = URL.createObjectURL(f); i.alt = "reference"; r.append(i); }); me.append(r); }
+  const out = el("div","out"); const wait = el("p","wait","Generating… 0s"); out.append(wait);
+  out.style.marginTop = "10px"; turn.append(me,out); $("log").append(turn); scroll();
+  const t0 = Date.now(), tick = setInterval(() => wait.textContent = `Generating… ${Math.round((Date.now()-t0)/1000)}s`, 1000);
+
+  $("prompt").value = ""; $("prompt").style.height = "auto"; refs = []; renderChips(); $("send").disabled = true;
+  try {
+    const headers = {};
+    let res;
+    if (sent.length){
+      const fd = new FormData(); sent.forEach(f => fd.append("image", f, f.name || "ref.png"));
+      fd.append("prompt", prompt); if (size !== "auto") fd.append("size", size); if (seed) fd.append("seed", seed);
+      res = await fetch(endpoint + "/v1/images/edits", { method:"POST", headers, body: fd });
+    } else {
+      const body = { prompt, size: size === "auto" ? "1024x1024" : size }; if (seed) body.seed = +seed;
+      res = await fetch(endpoint + "/v1/images/generations", { method:"POST", headers:{...headers,"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    }
+    const raw = await res.text(); let j; try { j = JSON.parse(raw.trim()); } catch(e){ throw new Error(raw.slice(0,200) || "empty response"); }
+    if (!res.ok) throw new Error(j.detail || "request failed (" + res.status + ")");
+    if (j.error) throw new Error(j.error.message);
+    out.innerHTML = "";
+    j.data.forEach(d => {
+      const src = "data:image/png;base64," + d.b64_json;
+      const im = new Image(); im.className = "result"; im.src = src; im.alt = prompt; out.append(im);
+      const row = el("div","row"), use = el("button","","Use as reference"), dl = el("a");
+      use.onclick = async () => { addFiles([await (await fetch(src)).blob().then(b => new File([b],"result.png",{type:"image/png"}))]); $("prompt").focus(); };
+      const save = el("button","","Download"); save.onclick = () => { const a = el("a"); a.href = src; a.download = `flux-${d.seed}.png`; a.click(); };
+      row.append(use,save); out.append(row);
+      out.append(el("details","","Seed " + d.seed));
+    });
+  } catch(e){ out.innerHTML = ""; out.append(el("p","err", "Error: " + e.message)); }
+  clearInterval(tick); $("send").disabled = false; scroll();
+}
+</script>
+</body>
+</html>
