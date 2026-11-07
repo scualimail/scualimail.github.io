@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wan video</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1115;color:#e8eaf0;font:16px system-ui,sans-serif;text-align:center;padding:24px}
+a{color:#7c9cff}small{color:#9aa3b2}
+</style></head><body><div id="m">Looking for the video server…</div>
+<script>
+(async () => {
+  const m = document.getElementById('m');
+  let e;
+  try {
+    e = await (await fetch('endpoint.json?t=' + Date.now(), { cache: 'no-store' })).json();
+  } catch (_) {
+    m.textContent = 'No server has been published yet. Start the Kaggle notebook first.';
+    return;
+  }
+  m.textContent = 'Connecting…';
+  const go = () => location.replace(e.url + location.search + location.hash);
+  try {
+    const c = new AbortController(); setTimeout(() => c.abort(), 8000);
+    await fetch(e.url + '/api/health', { signal: c.signal });
+    go();
+  } catch (_) {
+    m.innerHTML = 'The server did not answer.<br><small>Last published: ' + (e.updated || 'unknown') +
+      '</small><br><br>Start (or restart) the Kaggle notebook, wait for it to say ready, then reload.<br><br>' +
+      '<a href="' + e.url + '">Open it anyway</a>';
+  }
+})();
+</script></body></html>
