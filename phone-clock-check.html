@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone clock check</title>
+<style>
+  :root {
+    --bg: #f3f5f7; --panel: #ffffff; --ink: #12202b; --muted: #5b6b78;
+    --line: #d5dde3; --accent: #0b7a75; --accent-ink: #ffffff; --warn: #b4411f;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1a22; --panel: #16242e; --ink: #e6eef3; --muted: #93a4b1;
+      --line: #273945; --accent: #4fd1c5; --accent-ink: #06201d; --warn: #ff9a73;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 20px 16px 40px; max-width: 34rem; margin: 0 auto;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p { margin: 0 0 12px; }
+  .lead { color: var(--muted); }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin: 14px 0;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  label { color: var(--muted); }
+  select, button {
+    font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink);
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; flex: 1; min-width: 9rem; }
+  button:disabled { opacity: 0.5; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #status { min-height: 1.5em; }
+  #status.err { color: var(--warn); font-weight: 600; }
+  .big { font-size: 3.2rem; line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .big small { font-size: 1.1rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+  canvas { width: 100%; height: 90px; display: block; margin-top: 10px; }
+  #verdict { font-weight: 600; }
+  details { color: var(--muted); font-size: 0.92rem; }
+  details pre { white-space: pre-wrap; margin: 8px 0 0; font: 0.85rem/1.4 ui-monospace, Menlo, monospace; }
+  ul { margin: 6px 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.92rem; }
+</style>
+</head>
+<body>
+  <h1>Phone clock check</h1>
+  <p class="lead">Measures how far this phone’s microphone clock is from true time, in ppm. Keep this tab open and the screen on while it runs.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label for="dur">Duration</label>
+      <select id="dur">
+        <option value="5">5 min</option>
+        <option value="10">10 min</option>
+        <option value="15" selected>15 min</option>
+        <option value="30">30 min</option>
+      </select>
+      <button id="go" class="primary">Start</button>
+    </div>
+    <p id="status" role="status" aria-live="polite" style="margin-top:12px">Ready.</p>
+  </div>
+
+  <div class="panel">
+    <div class="big"><span id="ppm">–</span> <small>ppm</small></div>
+    <div class="sub"><span id="se">± –</span> · <span id="spd">– s/day</span> · <span id="cnt">0 samples</span></div>
+    <canvas id="spark" aria-label="Estimate over time"></canvas>
+    <p id="verdict" style="margin:12px 0 0"></p>
+  </div>
+
+  <details>
+    <summary>Details</summary>
+    <pre id="info">Nothing yet.</pre>
+  </details>
+
+  <ul>
+    <li>Positive ppm means the microphone clock runs fast. Use the same sign for <code>clockCorrectionPpm</code>.</li>
+    <li>Time comes from web time services, which are noisier than NTP. Expect about ±5 to ±10 ppm at 15 minutes. Good enough to tell 20 ppm from 0, not for fine calibration.</li>
+    <li>This tests the browser’s audio path. The Android app may differ a little.</li>
+  </ul>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const INTERVAL_MS = 5000;
+
+// Each source must send CORS headers and a time with fractions of a second.
+const SOURCES = [
+  { name: "Cloudflare", url: "https://www.cloudflare.com/cdn-cgi/trace", kind: "text",
+    parse: (t) => { const m = /ts=(\d+(?:\.\d+)?)/.exec(t); return m ? parseFloat(m[1]) : null; } },
+  { name: "WorldTimeAPI", url: "https://worldtimeapi.org/api/timezone/Etc/UTC", kind: "json",
+    parse: (j) => isoToSec(j && j.utc_datetime) },
+  { name: "TimeAPI.io", url: "https://timeapi.io/api/time/current/zone?timeZone=UTC", kind: "json",
+    parse: (j) => isoToSec(j && j.dateTime) },
+];
+
+function isoToSec(s) {
+  if (typeof s !== "string") return null;
+  const m = /(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d+))?/.exec(s);
+  if (!m) return null;
+  const whole = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000;
+  return whole + (m[7] ? parseFloat("0." + m[7]) : 0);
+}
+
+let running = false, frames = 0, rate = 0, method = "";
+let stream = null, ctx = null, reader = null, wake = null;
+let hist = [];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const setStatus = (t, err) => { const el = $("status"); el.textContent = t; el.className = err ? "err" : ""; };
+
+// ---- audio: count every frame the microphone delivers ---------------------------------
+
+async function startAudio() {
+  frames = 0; rate = 0;
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
+  const track = stream.getAudioTracks()[0];
+
+  if ("MediaStreamTrackProcessor" in window) {
+    method = "MediaStreamTrackProcessor (counts captured frames directly)";
+    reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
+    (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (!rate) rate = value.sampleRate;
+          frames += value.numberOfFrames;
+          value.close();
+        }
+      } catch (e) { /* stopped */ }
+    })();
+    return;
+  }
+
+  method = "AudioWorklet (counts frames on the audio output clock, less reliable)";
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume();
+  rate = ctx.sampleRate;
+  const code = "class C extends AudioWorkletProcessor{constructor(){super();this.n=0;this.b=0;}" +
+    "process(i){const c=i[0]&&i[0][0];if(c){this.n+=c.length;if(++this.b>=4){this.port.postMessage(this.n);this.n=0;this.b=0;}}return true;}}" +
+    "registerProcessor('counter',C);";
+  const url = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
+  await ctx.audioWorklet.addModule(url);
+  const node = new AudioWorkletNode(ctx, "counter");
+  node.port.onmessage = (e) => { frames += e.data; };
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  ctx.createMediaStreamSource(stream).connect(node);
+  node.connect(mute).connect(ctx.destination);
+}
+
+function stopAudio() {
+  try { if (reader) reader.cancel(); } catch (e) {}
+  reader = null;
+  try { if (stream) stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+  stream = null;
+  try { if (ctx) ctx.close(); } catch (e) {}
+  ctx = null;
+  try { if (wake) wake.release(); } catch (e) {}
+  wake = null;
+}
+
+// ---- time source ------------------------------------------------------------------
+
+async function query(src) {
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 4000);
+  try {
+    const sep = src.url.includes("?") ? "&" : "?";
+    const framesBefore = frames;
+    const t0 = performance.now();
+    const r = await fetch(src.url + sep + "_=" + Math.random().toString(36).slice(2), { cache: "no-store", signal: ctl.signal });
+    const body = src.kind === "json" ? await r.json() : await r.text();
+    const t3 = performance.now();
+    const framesAfter = frames;
+    const server = src.parse(body);
+    if (server == null || !isFinite(server)) throw new Error("unreadable time");
+    return { server, frames: (framesBefore + framesAfter) / 2, delay: (t3 - t0) / 1000 };
+  } finally { clearTimeout(to); }
+}
+
+async function pickSource() {
+  const lines = [];
+  let best = null;
+  for (const src of SOURCES) {
+    const ok = [];
+    let err = "";
+    for (let i = 0; i < 3 && running; i++) {
+      try { ok.push(await query(src)); } catch (e) { err = e && e.message ? e.message : "failed"; }
+      await sleep(250);
+    }
+    if (ok.length < 2) { lines.push(src.name + ": not usable (" + (err || "no reply") + ")"); continue; }
+    const fractional = ok.some((s) => Math.abs(s.server - Math.round(s.server)) > 0.0005);
+    const distinct = new Set(ok.map((s) => s.server)).size > 1;
+    const med = ok.map((s) => s.delay).sort((a, b) => a - b)[Math.floor(ok.length / 2)] * 1000;
+    if (!fractional || !distinct) { lines.push(src.name + ": rejected (whole seconds or cached)"); continue; }
+    lines.push(src.name + ": ok, round trip about " + med.toFixed(0) + " ms");
+    if (!best || med < best.med) best = { src, med };
+  }
+  $("info").textContent = lines.join("\n");
+  return best ? best.src : null;
+}
+
+// ---- fit -----------------------------------------------------------------------------
+
+function fit(all) {
+  const keepN = Math.ceil(all.length / 2);
+  const kept = all.slice().sort((a, b) => a.delay - b.delay).slice(0, keepN).sort((a, b) => a.server - b.server);
+  if (kept.length < 8 || !rate) return null;
+  const x0 = kept[0].server, y0 = kept[0].frames;
+  const xs = kept.map((s) => s.server - x0);
+  const ys = kept.map((s) => (s.frames - y0) / rate);
+  const n = kept.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { sxx += (xs[i] - mx) ** 2; sxy += (xs[i] - mx) * (ys[i] - my); }
+  if (sxx < 100) return null;
+  const slope = sxy / sxx, icpt = my - slope * mx;
+  let ssr = 0;
+  for (let i = 0; i < n; i++) ssr += (ys[i] - (icpt + slope * xs[i])) ** 2;
+  const sigma = Math.sqrt(ssr / Math.max(1, n - 2));
+  const delays = kept.map((s) => s.delay).sort((a, b) => a - b);
+  return { ppm: (slope - 1) * 1e6, se: (sigma / Math.sqrt(sxx)) * 1e6, n, total: all.length, med: delays[Math.floor(n / 2)] * 1000 };
+}
+
+// ---- UI ---------------------------------------------------------------------------
+
+const fmt = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
+
+function show(f, final) {
+  $("ppm").textContent = fmt(f.ppm);
+  $("se").textContent = "± " + f.se.toFixed(1) + " ppm";
+  $("spd").textContent = fmt(f.ppm * 0.0864, 2) + " s/day";
+  $("cnt").textContent = f.total + " samples";
+  hist.push({ v: f.ppm });
+  spark();
+  if (final) {
+    $("verdict").textContent = "Result: " + fmt(f.ppm) + " ± " + f.se.toFixed(1) +
+      " ppm. Set clockCorrectionPpm to " + fmt(f.ppm) + ".";
+  }
+}
+
+function spark() {
+  const c = $("spark"), d = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = Math.round(w * d); c.height = Math.round(h * d);
+  const g = c.getContext("2d");
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (hist.length < 2) return;
+  const vals = hist.map((p) => p.v);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 2) { const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
+  const css = getComputedStyle(document.documentElement);
+  g.strokeStyle = css.getPropertyValue("--accent").trim();
+  g.fillStyle = css.getPropertyValue("--muted").trim();
+  g.lineWidth = 2; g.font = "11px system-ui, sans-serif";
+  g.beginPath();
+  hist.forEach((p, i) => {
+    const x = 1 + (i / (hist.length - 1)) * (w - 2);
+    const y = h - 14 - ((p.v - lo) / (hi - lo)) * (h - 24);
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  });
+  g.stroke();
+  g.fillText(hi.toFixed(0) + " ppm", 4, 10);
+  g.fillText(lo.toFixed(0) + " ppm", 4, h - 2);
+}
+
+function reset() {
+  hist = [];
+  $("ppm").textContent = "–"; $("se").textContent = "± –"; $("spd").textContent = "– s/day";
+  $("cnt").textContent = "0 samples"; $("verdict").textContent = "";
+  spark();
+}
+
+async function run() {
+  const total = parseInt($("dur").value, 10) * 60;
+  running = true; reset();
+  $("go").textContent = "Cancel";
+  $("dur").disabled = true;
+  let ticker = null;
+  try {
+    setStatus("Opening microphone…");
+    try { wake = await navigator.wakeLock.request("screen"); } catch (e) { /* optional */ }
+    await startAudio();
+    for (let i = 0; i < 40 && frames === 0 && running; i++) await sleep(50);
+    if (!running) return;
+    if (frames === 0) throw new Error("No audio arrived from the microphone.");
+
+    setStatus("Checking time sources…");
+    const src = await pickSource();
+    if (!running) return;
+    if (!src) throw new Error("No time source worked (blocked or offline). See Details.");
+
+    $("info").textContent += "\nUsing: " + src.name + "\nAudio: " + method + "\nSample rate: " + rate + " Hz";
+
+    const samples = [];
+    const start = performance.now();
+    ticker = setInterval(() => {
+      const left = Math.max(0, total - (performance.now() - start) / 1000);
+      setStatus("Measuring… " + Math.floor(left / 60) + ":" + String(Math.floor(left % 60)).padStart(2, "0") + " left");
+    }, 1000);
+
+    let k = 0, fails = 0;
+    while (running) {
+      if ((performance.now() - start) / 1000 >= total) break;
+      try { samples.push(await query(src)); fails = 0; }
+      catch (e) { if (++fails >= 12) throw new Error("Lost the time source for 60 seconds."); }
+      const f = fit(samples);
+      if (f) show(f, false); else $("cnt").textContent = samples.length + " samples";
+      k++;
+      const wait = k * INTERVAL_MS - (performance.now() - start);
+      if (wait > 0) await sleep(wait);
+    }
+    if (!running) return;
+
+    const f = fit(samples);
+    if (!f) throw new Error("Not enough good replies. Try again on a stable connection.");
+    show(f, true);
+    $("info").textContent += "\nSamples used: " + f.n + " of " + f.total + ", median round trip " + f.med.toFixed(0) + " ms";
+    setStatus("Done.");
+  } catch (e) {
+    const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    setStatus(denied ? "Microphone blocked. Allow it for this page, and open the page over https." : (e && e.message ? e.message : "Failed."), true);
+  } finally {
+    if (ticker) clearInterval(ticker);
+    running = false;
+    stopAudio();
+    $("go").textContent = "Start";
+    $("dur").disabled = false;
+  }
+}
+
+$("go").addEventListener("click", () => {
+  if (running) { running = false; stopAudio(); setStatus("Cancelled."); return; }
+  run();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && running) {
+    running = false; stopAudio();
+    setStatus("The tab went to the background. Run it again and keep this tab open.", true);
+  }
+});
+window.addEventListener("resize", spark);
+</script>
+</body>
+</html>
