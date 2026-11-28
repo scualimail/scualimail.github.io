@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BG Remover: Private AI Studio — On-Device Background Removal & Passport Photo Studio</title>
+    <meta name="description" content="Instant AI background removal, photo editing suite & passport photo studio. 100% on-device local processing, zero cloud uploads. Passport specs for 50+ countries.">
+    <link rel="icon" type="image/png" href="assets/app_icon.png">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        },
+                        dark: '#0f172a',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.90);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+        }
+        .glass-card:hover {
+            border-color: #0ea5e9;
+            box-shadow: 0 20px 30px -10px rgba(14, 165, 233, 0.15);
+        }
+        .wiper-container {
+            position: relative;
+            user-select: none;
+            overflow: hidden;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .wiper-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #0ea5e9;
+            cursor: ew-resize;
+            z-index: 20;
+        }
+        .wiper-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #0ea5e9;
+            border: 3px solid #ffffff;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- STICKY NAVBAR -->
+    <header class="sticky top-0 z-50 px-4 sm:px-8 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <a href="#" class="flex items-center gap-3">
+                <img src="assets/app_icon.png" alt="BG Remover Icon" class="w-10 h-10 rounded-xl shadow-md">
+                <span class="font-extrabold text-slate-900 text-lg tracking-tight">BG REMOVER: <span class="text-brand-500">PRIVATE AI STUDIO</span></span>
+            </a>
+
+            <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
+                <a href="#bg-removal" class="hover:text-brand-500 transition">Background Removal</a>
+                <a href="#photo-editor" class="hover:text-brand-500 transition">Photo Editor</a>
+                <a href="#passport-studio" class="hover:text-brand-500 transition">Passport Studio</a>
+                <a href="https://scualimail.github.io/BG-Remover-Privacy-Policy/privacy-policy.html" target="_blank" rel="noopener" class="hover:text-brand-500 transition">Privacy Policy</a>
+            </nav>
+
+            <a href="https://play.google.com/store/apps/details?id=com.scualimail.bgremover" target="_blank" rel="noopener" class="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md hover:shadow-brand-500/20 transition flex items-center gap-2">
+                <span>📲</span> Get on Google Play
+            </a>
+        </div>
+    </header>
+
+    <!-- TOP HERO SECTION (3-COLUMN LAYOUT: COPY + REEL PLAYER + BEFORE/AFTER SLIDER) -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-8 pt-10 pb-16 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+
+        <!-- Column 1: Copy & Download Button -->
+        <div class="lg:col-span-5 space-y-5">
+            <!-- CLEAN SINGLE LINE PILL BADGE -->
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50 border border-brand-200 text-brand-600 text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap max-w-full overflow-x-auto">
+                <span>⚡ 100% On-Device AI</span>
+                <span>•</span>
+                <span>Passport Specs for 50+ Countries</span>
+                <span>•</span>
+                <span>6 MB</span>
+            </div>
+
+            <h1 class="text-3xl sm:text-4xl xl:text-5xl font-black text-slate-900 leading-tight">
+                Instant AI Background Removal <br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-emerald-500">& Passport Photo Studio</span>
+            </h1>
+
+            <p class="text-base text-slate-600 font-medium leading-relaxed">
+                Transform any photo in seconds with studio precision. Zero cloud uploads, zero privacy risk. Your photos <span class="text-slate-900 font-bold underline decoration-brand-500 decoration-2">NEVER leave your phone</span>.
+            </p>
+
+            <div>
+                <a href="https://play.google.com/store/apps/details?id=com.scualimail.bgremover" target="_blank" rel="noopener" class="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3.5 rounded-2xl font-bold text-base shadow-xl hover:shadow-slate-900/20 transition inline-flex items-center gap-3">
+                    <span class="text-2xl">📲</span>
+                    <div class="text-left">
+                        <div class="text-[10px] text-slate-300 font-normal uppercase tracking-wider">Available on</div>
+                        <div class="text-sm font-bold">Google Play Store</div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Trust Pills -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs font-bold text-slate-700">
+                <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                    <span class="text-emerald-500 text-base">✓</span> 100% On-Device Local AI
+                </div>
+                <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                    <span class="text-emerald-500 text-base">✓</span> Passport Specs for 50+ Countries
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 2: Commercial Reel Embed Video Player (In Between Highlights & Slider) -->
+        <div class="lg:col-span-3 flex flex-col items-center justify-center space-y-2">
+            <span class="text-xs font-extrabold text-brand-600 uppercase tracking-wider">🎬 30-Sec Commercial Reel</span>
+            <div class="w-full max-w-[280px] aspect-[9/16] bg-slate-900 rounded-[2.5rem] p-2.5 shadow-2xl border-4 border-slate-800">
+                <iframe class="w-full h-full rounded-[2rem]" src="https://www.youtube.com/embed/5rPrXmu3WKA" title="BG Remover App Commercial Reel" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+            </div>
+        </div>
+
+        <!-- Column 3: Interactive Before/After Wiper Slider -->
+        <div class="lg:col-span-4 flex flex-col items-center justify-center space-y-2">
+            <span class="text-xs font-extrabold text-emerald-600 uppercase tracking-wider">↔ Drag Wiper To Test</span>
+            <div class="wiper-container w-full max-w-[380px] aspect-square relative border-4 border-white shadow-2xl">
+                <img src="assets/blonde_messy.png" alt="Original Photo Before AI Cutout" class="absolute inset-0 w-full h-full object-cover">
+
+                <div id="wiperCutout" class="absolute inset-0 w-1/2 overflow-hidden z-10 border-r-2 border-brand-500">
+                    <img src="assets/blonde_cutout.png" alt="Clean AI Background Cutout" class="absolute inset-0 w-[380px] max-w-none h-full object-cover bg-slate-100">
+                </div>
+
+                <div id="wiperBar" class="wiper-line left-1/2">
+                    <div class="wiper-handle">↔</div>
+                </div>
+
+                <!-- Badges -->
+                <div class="absolute top-3 left-3 z-30 px-2.5 py-1 bg-red-500 text-white font-bold text-[11px] rounded-full shadow">BEFORE ❌</div>
+                <div class="absolute top-3 right-3 z-30 px-2.5 py-1 bg-emerald-500 text-white font-bold text-[11px] rounded-full shadow">AFTER ✔</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODULE 01: BACKGROUND REMOVAL STUDIO & COLOR SWAPPER -->
+    <section id="bg-removal" class="bg-white border-y border-slate-200 py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 space-y-10">
+            <div class="text-center max-w-3xl mx-auto space-y-3">
+                <span class="px-3 py-1 rounded-full bg-brand-100 text-brand-700 font-bold text-xs uppercase tracking-wider">Module 01</span>
+                <h2 class="text-3xl font-black text-slate-900">Background Removal Studio & Studio Color Swapper</h2>
+                <p class="text-slate-600 text-sm font-medium">Remove messy backgrounds in seconds and swap background colors with studio precision.</p>
+            </div>
+
+            <!-- 3 Showcase Cards: Wiper Demo + Color Swapper Demo + Gemini AI Cutout (REPLACED BACKGROUND WITH ANY IMAGE) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+                <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3 flex flex-col justify-between">
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm aspect-square">
+                        <img src="assets/square_demo_s1_wiper.png" alt="Instant AI Background Cutout Demo" class="w-full h-full object-cover">
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-lg font-extrabold text-slate-900">Instant AI Cutout & Eraser</h3>
+                        <p class="text-slate-600 text-xs leading-relaxed">Erase unwanted backgrounds automatically in seconds with clean edge detection.</p>
+                    </div>
+                </div>
+
+                <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3 flex flex-col justify-between">
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm aspect-square">
+                        <img src="assets/square_demo_s2_colors.png" alt="Studio Color Swapper Demo" class="w-full h-full object-cover">
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-lg font-extrabold text-slate-900">Studio Color Swapper</h3>
+                        <p class="text-slate-600 text-xs leading-relaxed">Replace backgrounds with solid studio colors (White, Electric Blue, Passion Rose, Slate, Dark Mode).</p>
+                    </div>
+                </div>
+
+                <!-- Card 3: Replace Any Background with Any Image -->
+                <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3 flex flex-col justify-between">
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm w-full bg-slate-50 flex items-center justify-center p-1">
+                        <img src="assets/asset_gemini_cutout.png" alt="Replace Any Background with Any Image" class="w-full h-auto max-h-[460px] object-contain rounded-xl">
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-lg font-extrabold text-slate-900">Replace Any Background with Any Image</h3>
+                        <p class="text-slate-600 text-xs leading-relaxed">Seamlessly replace any background with custom photos, landscapes, studio colors, or wallpapers.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODULE 02: FULL PHOTO EDITING SUITE -->
+    <section id="photo-editor" class="py-20 max-w-7xl mx-auto px-4 sm:px-8 space-y-10">
+        <div class="text-center max-w-3xl mx-auto space-y-3">
+            <span class="px-3 py-1 rounded-full bg-purple-100 text-purple-700 font-bold text-xs uppercase tracking-wider">Module 02</span>
+            <h2 class="text-3xl font-black text-slate-900">Professional Photo Editing Suite</h2>
+            <p class="text-slate-600 text-sm font-medium">Fine-tune crops, zoom & pan, adjust brightness, contrast, saturation, and replace backgrounds effortlessly.</p>
+        </div>
+
+        <!-- Photo Editing Tools Showcase -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+            <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3">
+                <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                    <img src="assets/lion_snap_3.png" alt="Zoom & Pan and Edit" class="w-full h-auto object-cover">
+                </div>
+                <div class="space-y-1">
+                    <h3 class="text-lg font-extrabold text-slate-900">Zoom & Pan and Edit</h3>
+                    <p class="text-slate-600 text-xs leading-relaxed">Zoom in, pan, and fine-tune your subject cutouts with smooth precision controls.</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3">
+                <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                    <img src="assets/lion_snap_4.png" alt="Brightness & Contrast" class="w-full h-auto object-cover">
+                </div>
+                <div class="space-y-1">
+                    <h3 class="text-lg font-extrabold text-slate-900">Brightness & Contrast</h3>
+                    <p class="text-slate-600 text-xs leading-relaxed">Adjust brightness, contrast, saturation, and color balance to match any scene seamlessly.</p>
+                </div>
+            </div>
+
+            <div class="glass-card p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-3">
+                <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                    <img src="assets/asset_screenshot_editor_tools.png" alt="Full Crop & Adjustment Controls" class="w-full h-auto object-cover">
+                </div>
+                <div class="space-y-1">
+                    <h3 class="text-lg font-extrabold text-slate-900">Full Crop & Adjustment Controls</h3>
+                    <p class="text-slate-600 text-xs leading-relaxed">Crop, rotate, adjust saturation, brightness, contrast, and fine-tune your subject cutouts with touch controls.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MODULE 03: PASSPORT PHOTO STUDIO & COMPLIANCE VERIFICATION -->
+    <section id="passport-studio" class="bg-white border-y border-slate-200 py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 space-y-10">
+            <div class="text-center max-w-3xl mx-auto space-y-3">
+                <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs uppercase tracking-wider">Module 03</span>
+                <h2 class="text-3xl font-black text-slate-900">Passport Photo Studio & Compliance Verification (50+ Countries)</h2>
+                <p class="text-slate-600 text-sm font-medium">Automatic head sizing, eye alignment, neutral expression check, glare detection, and print sheet generation.</p>
+            </div>
+
+            <!-- Passport Screenshots Grid (Exact Sequence 1 through 9) -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                <!-- 1. Laser Compliance Scan -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_passport_scan.png" alt="Laser Compliance Scan" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">Laser Compliance Scan</span>
+                </div>
+
+                <!-- 2. Head & Expression Check -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_smile_detected.png" alt="Head & Expression Check" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">Head & Expression Check</span>
+                </div>
+
+                <!-- 3. Glare Check (from Glare.png) -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_glare_scan.png" alt="Glare Check" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">Glare Check</span>
+                </div>
+
+                <!-- 4. Glare Verification Passed (from Glare Check.png) -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_glare_check.png" alt="Glare Verification Passed" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">Glare Verification Passed</span>
+                </div>
+
+                <!-- 5. 100% On-Device AI -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_on_device.png" alt="100% On-Device AI Engine" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">100% On-Device AI</span>
+                </div>
+
+                <!-- 6. Passport Spec Certified -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_success.png" alt="Passport Spec Certified" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">Passport Spec Certified</span>
+                </div>
+
+                <!-- 7. 4x6" PDF Print Sheet -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_pdf4.png" alt="4x6 Print PDF Sheet" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">4x6" PDF Print Sheet</span>
+                </div>
+
+                <!-- 8. 8-Photo Print Grid -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_pdf8.png" alt="8-Photo Print Grid" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">8-Photo Print Grid</span>
+                </div>
+
+                <!-- 9. 16-Photo Print Grid -->
+                <div class="glass-card p-3 rounded-2xl text-center space-y-2">
+                    <img src="assets/screenshot_pdf16.png" alt="16-Photo Print Grid" class="w-full h-auto rounded-xl border border-slate-200">
+                    <span class="text-xs font-bold text-slate-800">16-Photo Print Grid</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- GOOGLE PLAY DEVELOPER SAFETY & OFFICIAL PRIVACY POLICY SECTION -->
+    <section id="privacy" class="bg-slate-900 text-white py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 space-y-10">
+            <div class="max-w-3xl space-y-3">
+                <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs uppercase tracking-wider">Official Developer Safety Portal</span>
+                <h2 class="text-3xl font-black">Google Play Developer & Data Safety Disclosures</h2>
+                <p class="text-slate-400 text-sm font-medium">Official developer verification page for 'BG Remover: Private AI Studio' (<code class="text-brand-400 font-mono">com.scualimail.bgremover</code>).</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                <div class="p-6 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-3">
+                    <div class="text-brand-400 font-bold text-base">🔒 Zero Data Collection</div>
+                    <p class="text-slate-300 leading-relaxed">No user photos, facial markers, or personal identifiers are ever collected, transmitted, or stored on remote servers. 100% of machine learning processing runs locally on your phone hardware.</p>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-3">
+                    <div class="text-brand-400 font-bold text-base">📱 App Technical Specifications</div>
+                    <ul class="text-slate-300 space-y-1">
+                        <li><strong>Package:</strong> <code class="text-slate-400">com.scualimail.bgremover</code></li>
+                        <li><strong>Download Size:</strong> Ultra-Light 6 MB</li>
+                        <li><strong>OS Requirement:</strong> Android 7.0 (API 24) and up</li>
+                        <li><strong>Content Rating:</strong> PEGI 3</li>
+                        <li><strong>In-App Purchases:</strong> €1.99 - €7.99</li>
+                    </ul>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-3">
+                    <div class="text-brand-400 font-bold text-base">🔗 Official Legal Links</div>
+                    <p class="text-slate-300 leading-relaxed mb-3">Access our full legal privacy documentation for Play Console compliance:</p>
+                    <a href="https://scualimail.github.io/BG-Remover-Privacy-Policy/privacy-policy.html" target="_blank" rel="noopener" class="inline-block bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-xs transition">
+                        📄 View Official Privacy Policy Page
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-950 text-slate-400 text-xs py-8 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+                <p class="font-bold text-slate-300 mb-1">BG REMOVER: PRIVATE AI STUDIO • CONTAINS ADS • IN-APP PURCHASES</p>
+                <p>© 2026 BG Remover: Private AI Studio. All Rights Reserved.</p>
+            </div>
+
+            <div class="flex items-center gap-6 font-semibold">
+                <a href="https://scualimail.github.io/BG-Remover-Privacy-Policy/privacy-policy.html" target="_blank" rel="noopener" class="hover:text-brand-400 transition">Privacy Policy</a>
+                <a href="https://play.google.com/store/apps/details?id=com.scualimail.bgremover" target="_blank" rel="noopener" class="hover:text-brand-400 transition">Google Play Listing</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- INTERACTIVE WIPER JAVASCRIPT -->
+    <script>
+        const container = document.querySelector('.wiper-container');
+        const cutout = document.getElementById('wiperCutout');
+        const bar = document.getElementById('wiperBar');
+
+        let isDragging = false;
+
+        function updateWiper(x) {
+            const rect = container.getBoundingClientRect();
+            let pos = x - rect.left;
+            if (pos < 0) pos = 0;
+            if (pos > rect.width) pos = rect.width;
+
+            const pct = (pos / rect.width) * 100;
+            cutout.style.width = pct + '%';
+            bar.style.left = pct + '%';
+        }
+
+        container.addEventListener('mousedown', (e) => { isDragging = true; updateWiper(e.clientX); });
+        window.addEventListener('mousemove', (e) => { if (isDragging) updateWiper(e.clientX); });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        container.addEventListener('touchstart', (e) => { isDragging = true; updateWiper(e.touches[0].clientX); });
+        window.addEventListener('touchmove', (e) => { if (isDragging) updateWiper(e.touches[0].clientX); });
+        window.addEventListener('touchend', () => { isDragging = false; });
+    </script>
+</body>
+</html>
